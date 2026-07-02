@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steemometer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="dashboard">
+        <!-- Gauge Display -->
+        <div id="gaugeDisplay">
+            <canvas id="gaugeCanvas" width="400" height="440"></canvas>
+            <div id="digitalLabels">
+                <span id="blockCountLabel">Collecting Data!</span>
+                <span id="digitalLBC">Collecting Data!</span>
+                <span id="digitalDisplay">Collecting Data!</span>
+                <span id="digitalDisplayMax">Collecting Data!</span>
+                <span id="digitalDisplayAvg">Collecting Data!</span>
+            </div>
+        </div>
+
+        <!-- History Graph Display -->
+        <div id="histGraphDisplay" style="display:none;">
+            <canvas id="graphCanvas" width="400" height="300"></canvas>
+        </div>
+
+        <!-- VAAS / Beneficiary Post Display -->
+        <div id="vaasContainer">
+            <div id="benPostHolder" class="vaas-panel" style="display:none;">
+                <div class="vaas-content">
+                    <span id="nullPctLabel"></span>
+                    <span id="authorLabel"></span>
+                    <span id="authorRepLabel"></span>
+                    <span id="authorFollowersLabel"></span>
+                    <span id="medFollowerRep"></span>
+                    <span id="pendingPayoutText"></span>
+                    <span id="netVotesText"></span>
+                    <div id="scrollingText" class="scrolling-text"></div>
+                </div>
+            </div>
+            <div id="promotedPostHolder" class="vaas-panel" style="display:none;">
+                <div class="vaas-content">
+                    <span id="promoHeadingText"></span>
+                    <span id="promoFromText"></span>
+                    <span id="promoAuthorRepLabel"></span>
+                    <span id="promoAuthorFollowersLabel"></span>
+                    <span id="promoFollowerRep"></span>
+                    <span id="promoPendingPayoutText"></span>
+                    <span id="promoNetVotesText"></span>
+                    <div id="scrollPromoText" class="scrolling-text"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filter Checkboxes -->
+        <div id="filterRow">
+            <label><input type="checkbox" id="commentFilter" class="filter-cb"> Comments</label>
+            <label><input type="checkbox" id="voteFilter" class="filter-cb"> Votes</label>
+            <label><input type="checkbox" id="transferFilter" class="filter-cb"> Transfers</label>
+            <label><input type="checkbox" id="customJsonFilter" class="filter-cb"> Custom JSON</label>
+        </div>
+
+        <!-- Alert Image -->
+        <div id="alertContainer">
+            <img id="alertImage" src="" alt="" style="display:none; cursor:pointer;" />
+        </div>
+
+        <!-- Action Buttons -->
+        <div id="buttonRow">
+            <select id="apiServerSelect"></select>
+            <select id="webServerSelect"></select>
+            <button id="resetButton">Reset Counters</button>
+            <button id="pauseButton">Pause</button>
+            <button id="suggestedVoteButton" style="display:none;">Suggest vote</button>
+        </div>
+    </div>
+
+    <!-- Vote Suggestion Modal -->
+    <div id="voteModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <span id="closeModal" class="close">&times;</span>
+            <h3>Estimate your voting.</h3>
+            <table id="voteTable">
+                <thead>
+                    <tr><th>Votes per day</th><th>Suggested vote %</th></tr>
+                </thead>
+                <tbody id="voteTableBody"></tbody>
+            </table>
+            <a id="voteLink" href="#" target="_blank">Link</a>
+        </div>
+    </div>
+
+    <!-- Notification overlay -->
+    <div id="notificationOverlay" style="display:none;"></div>
+
+    <script src="steemometer.js"></script>
+</body>
+</html>

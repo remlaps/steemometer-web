@@ -1,0 +1,240 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: Verdana, Arial, sans-serif;
+    background: #1a1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+#dashboard {
+    background: powderblue;
+    border-radius: 8px;
+    padding: 10px;
+    width: 420px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+#gaugeDisplay {
+    position: relative;
+    cursor: pointer;
+}
+
+#gaugeCanvas {
+    display: block;
+    margin: 0 auto;
+}
+
+#digitalLabels {
+    position: absolute;
+    top: 100px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    pointer-events: none;
+}
+
+#digitalLabels span {
+    display: block;
+    font-size: 14px;
+    color: navy;
+    margin: 2px 0;
+}
+
+#histGraphDisplay {
+    cursor: pointer;
+}
+
+#graphCanvas {
+    display: block;
+    margin: 0 auto;
+    background: whitesmoke;
+    border: 2px solid royalblue;
+    border-radius: 4px;
+}
+
+#vaasContainer {
+    margin-top: 10px;
+}
+
+.vaas-panel {
+    background: whitesmoke;
+    border-radius: 4px;
+    padding: 8px;
+    min-height: 70px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    cursor: pointer;
+}
+
+.vaas-content {
+    font-size: 12px;
+    color: #333;
+    position: relative;
+    z-index: 1;
+}
+
+.vaas-content span {
+    display: inline-block;
+    margin-right: 8px;
+}
+
+.scrolling-text {
+    white-space: nowrap;
+    color: royalblue;
+    font-size: 13px;
+    margin-top: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+#filterRow {
+    margin-top: 10px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+#filterRow label {
+    font-size: 12px;
+    color: navy;
+    cursor: pointer;
+}
+
+#filterRow input[type="checkbox"] {
+    margin-right: 2px;
+}
+
+#alertContainer {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+}
+
+#alertImage {
+    width: 40px;
+    height: 40px;
+    border-radius: 4px;
+}
+
+#buttonRow {
+    margin-top: 10px;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+#buttonRow select {
+    font-size: 11px;
+    padding: 2px 4px;
+    border: 1px solid #999;
+    border-radius: 3px;
+    background: lightgreen;
+    max-width: 180px;
+}
+
+#buttonRow button {
+    font-size: 11px;
+    padding: 4px 8px;
+    border: 1px solid #999;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+#resetButton {
+    background: goldenrod;
+    color: #333;
+}
+
+#pauseButton {
+    background: skyblue;
+    color: #333;
+}
+
+#suggestedVoteButton {
+    background: goldenrod;
+    color: #333;
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    z-index: 100;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    min-width: 250px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.modal-content h3 {
+    color: blue;
+    margin-bottom: 10px;
+}
+
+.close {
+    float: right;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+#voteTable {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 10px;
+}
+
+#voteTable th, #voteTable td {
+    border: 1px solid #ccc;
+    padding: 4px 8px;
+    text-align: center;
+    font-size: 13px;
+}
+
+#voteTable th {
+    background: #eee;
+}
+
+#voteLink {
+    color: blue;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+/* Notification overlay */
+#notificationOverlay {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 100, 0, 0.9);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    z-index: 200;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    max-width: 300px;
+}
