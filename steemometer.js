@@ -1,5 +1,5 @@
 // ============================================================
-// Steemometer - Web Version
+// Steemometer - Web Version 0.0.2
 // Ported from Java Steemometer by Steve Palmer
 // ============================================================
 
@@ -93,9 +93,17 @@ let state = {
     authorObj: null
 };
 
-// Data queue for graph (last 100 values)
-let dataQueue = [];
-for (let i = 0; i < 100; i++) dataQueue.push(0);
+// Data queues for graph (last 100 values per filter type)
+let dataQueues = {
+    "all": [],
+    "comment": [],
+    "vote": [],
+    "transfer": [],
+    "custom_json": []
+};
+for (const key in dataQueues) {
+    for (let i = 0; i < 100; i++) dataQueues[key].push(0);
+}
 
 // Block queue for rolling average
 let blockQueue = [];
@@ -363,10 +371,19 @@ async function countOpsInBlock(blockNum, apiUrl) {
             }
         }
 
+        const trackTypes = ['all', 'comment', 'vote', 'transfer', 'custom_json'];
+        trackTypes.forEach(t => {
+            if (t === 'all') {
+                state.opsByName['all'] = Math.round(cumTotal * 20 / Math.min(count, 20));
+            } else {
+                state.opsByName[t] = Math.round((totalSums[t] || 0) * 20 / Math.min(count, 20));
+            }
+        });
         for (const key in totalSums) {
-            state.opsByName[key] = Math.round(totalSums[key] * 20 / Math.min(count, 20));
+            if (!trackTypes.includes(key)) {
+                state.opsByName[key] = Math.round(totalSums[key] * 20 / Math.min(count, 20));
+            }
         }
-        state.opsByName["all"] = Math.round(cumTotal * 20 / Math.min(count, 20));
 
         return 0;
     } catch (e) {
@@ -676,7 +693,8 @@ function drawGraph() {
         ctx.stroke();
     }
 
-    if (dataQueue.length < 2) return;
+    const activeQueue = dataQueues[state.filter] || [];
+    if (activeQueue.length < 2) return;
 
     ctx.strokeStyle = 'royalblue';
     ctx.lineWidth = 2;
@@ -686,9 +704,9 @@ function drawGraph() {
     gradient.addColorStop(0, 'rgba(65, 105, 225, 0.3)');
     gradient.addColorStop(1, 'rgba(65, 105, 225, 0.05)');
 
-    for (let i = 0; i < dataQueue.length; i++) {
-        const x = padding.left + (i / (dataQueue.length - 1)) * plotW;
-        const y = padding.top + plotH - (dataQueue[i] / maxY) * plotH;
+    for (let i = 0; i < activeQueue.length; i++) {
+        const x = padding.left + (i / (activeQueue.length - 1)) * plotW;
+        const y = padding.top + plotH - (activeQueue[i] / maxY) * plotH;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
     }
@@ -1065,8 +1083,12 @@ async function mainLoop() {
 
     state.currBlock = state.lastBlockChecked;
     if (state.prevBlock !== state.currBlock) {
-        dataQueue.shift();
-        dataQueue.push(speed);
+        const trackTypes = ['all', 'comment', 'vote', 'transfer', 'custom_json'];
+        trackTypes.forEach(t => {
+            const val = state.opsByName[t] || 0;
+            dataQueues[t].shift();
+            dataQueues[t].push(val);
+        });
         drawGraph();
         state.prevBlock = state.currBlock;
     }
@@ -1105,10 +1127,13 @@ function resetCounters() {
     state.numBlocks = 0;
 
     blockQueue = [];
-    dataQueue = [];
-    for (let i = 0; i < 100; i++) dataQueue.push(0);
+    for (const key in dataQueues) {
+        dataQueues[key] = [];
+        for (let i = 0; i < 100; i++) dataQueues[key].push(0);
+    }
 
     drawGauge(0);
+    drawGraph();
     updateDashLabels();
 }
 
@@ -1122,34 +1147,39 @@ function handleFilterAction(filterType) {
     const commentCb = document.getElementById('commentFilter');
     const customJsonCb = document.getElementById('customJsonFilter');
 
+    let targetCb;
+    let mappedFilter;
     switch (filterType) {
         case 'comment':
-            voteCb.checked = false;
-            transferCb.checked = false;
-            customJsonCb.checked = false;
-            state.filter = 'comment';
+            targetCb = commentCb;
+            mappedFilter = 'comment';
             break;
         case 'vote':
-            commentCb.checked = false;
-            transferCb.checked = false;
-            customJsonCb.checked = false;
-            state.filter = 'vote';
+            targetCb = voteCb;
+            mappedFilter = 'vote';
             break;
         case 'transfer':
-            commentCb.checked = false;
-            voteCb.checked = false;
-            customJsonCb.checked = false;
-            state.filter = 'transfer';
+            targetCb = transferCb;
+            mappedFilter = 'transfer';
             break;
         case 'customJson':
-            commentCb.checked = false;
-            voteCb.checked = false;
-            transferCb.checked = false;
-            state.filter = 'custom_json';
+            targetCb = customJsonCb;
+            mappedFilter = 'custom_json';
             break;
     }
 
+    if (targetCb && targetCb.checked) {
+        if (commentCb !== targetCb) commentCb.checked = false;
+        if (voteCb !== targetCb) voteCb.checked = false;
+        if (transferCb !== targetCb) transferCb.checked = false;
+        if (customJsonCb !== targetCb) customJsonCb.checked = false;
+        state.filter = mappedFilter;
+    } else {
+        state.filter = 'all';
+    }
+
     drawGauge(state.opsByName[state.filter] || 0);
+    drawGraph();
     updateDashLabels();
 }
 
