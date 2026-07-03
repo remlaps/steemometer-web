@@ -19,38 +19,23 @@ body {
     border-radius: 8px;
     padding: 10px;
     width: 420px;
+    min-height: 550px;
     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     position: relative;
 }
 
-#gaugeDisplay {
+#gaugeDisplay,
+#histGraphDisplay {
     position: relative;
     cursor: pointer;
+    width: 400px;
+    height: 440px;
+    margin: 0 auto;
 }
 
 #gaugeCanvas {
     display: block;
     margin: 0 auto;
-}
-
-#digitalLabels {
-    position: absolute;
-    top: 100px;
-    left: 0;
-    width: 100%;
-    text-align: center;
-    pointer-events: none;
-}
-
-#digitalLabels span {
-    display: block;
-    font-size: 14px;
-    color: navy;
-    margin: 2px 0;
-}
-
-#histGraphDisplay {
-    cursor: pointer;
 }
 
 #graphCanvas {
@@ -61,8 +46,27 @@ body {
     border-radius: 4px;
 }
 
+#digitalLabels {
+    position: absolute;
+    top: 100px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    pointer-events: none;
+}
+#digitalLabels span {
+    display: block;
+    font-size: 14px;
+    color: navy;
+    margin: 2px 0;
+}
+
 #vaasContainer {
     margin-top: 10px;
+}
+
+#vaasContainer.empty {
+    display: none;
 }
 
 .vaas-panel {
@@ -93,7 +97,8 @@ body {
     color: royalblue;
     font-size: 13px;
     margin-top: 4px;
-    overflow: hidden;
+    display: block;
+    width: max-content;
     position: relative;
 }
 
