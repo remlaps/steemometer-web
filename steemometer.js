@@ -1,5 +1,5 @@
 // ============================================================
-// Steemometer - Web Version 0.0.2
+// Steemometer - Web Version 0.0.3
 // Ported from Java Steemometer by Steve Palmer
 // ============================================================
 
@@ -11,12 +11,11 @@ const VAAS_WIDTH = 360;
 const VAAS_HEIGHT = 70;
 const UPDATE_INTERVAL = 1000; // ms
 const LABEL_COUNT = 9;
-const SCALE_FACTOR = 20;
+const BLOCKS_PER_MINUTE = 20;
 const MAX_SPEED = 60;
 const MAX_FAIL = 3;
 const VAAS_INTERVAL = 30;
 const MAX_BLOCKS_TO_SAVE = 100;
-const BLOCKS_PER_MINUTE = 20;
 const HALFLIFE_BLOCKS = 1200;
 const MAXLIFE_BLOCKS = 28800;
 const MINREP_FOR_BEN_DISPLAY = 45.0;
@@ -70,6 +69,7 @@ const WEB_SERVERS = [
 // --- State ---
 let state = {
     lastBlockChecked: 0,
+    vaasLastBlockChecked: 0,
     numBlocks: 0,
     filter: "all",
     opsByName: {},       // current block counts
@@ -126,19 +126,39 @@ let scrollPromoAnimFrame = null;
 // JSON-RPC Helpers
 // ============================================================
 
-async function jsonRpcCall(url, method, params) {
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            jsonrpc: "2.0",
-            method: method,
-            params: params,
-            id: 1
-        })
-    });
-    const data = await response.json();
-    return data;
+async function jsonRpcCall(url, method, params, maxRetries = 2) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    jsonrpc: "2.0",
+                    method: method,
+                    params: params,
+                    id: 1
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const data = await response.json();
+            return data;
+        } catch (error) {
+            lastError = error;
+            if (attempt < maxRetries) {
+                console.warn(`Attempt ${attempt} failed for ${method}, retrying...`);
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+            }
+        }
+    }
+    
+    console.error(`JSON-RPC call failed for ${method} after ${maxRetries} attempts:`, lastError.message);
+    throw lastError;
 }
 
 async function getLastIrreversibleBlock(url) {
@@ -224,11 +244,27 @@ async function retrievePostInfo(post, apiUrl) {
     try {
         const data = await jsonRpcCall(apiUrl, "condenser_api.get_content", [post.author, post.permlink]);
         if (data.result && data.result.id !== 0) {
-            post.title = data.result.title || "(no title)";
+            let title = data.result.title || "(no title)";
             post.pendingPayout = parseFloat(data.result.pending_payout_value) || 0;
             post.netVotes = data.result.net_votes || 0;
             post.steemURL = "/@" + post.author + "/" + post.permlink;
-            return post.title;
+
+            // If this is a reply (comment), fetch the parent post title
+            const parentAuthor = data.result.parent_author;
+            const parentPermlink = data.result.parent_permlink;
+            if (parentAuthor && parentPermlink && parentAuthor !== "" && title === "(no title)") {
+                try {
+                    const parentData = await jsonRpcCall(apiUrl, "condenser_api.get_content", [parentAuthor, parentPermlink]);
+                    if (parentData.result && parentData.result.id !== 0 && parentData.result.title) {
+                        title = `Reply to: ${parentData.result.title}`;
+                    }
+                } catch (e) {
+                    console.error("Error fetching parent post info:", e);
+                }
+            }
+
+            post.title = title;
+            return title;
         }
     } catch (e) {
         console.error("Error retrieving post info:", e);
@@ -311,21 +347,6 @@ async function countOpsInBlock(blockNum, apiUrl) {
             if (!blockCounts["all"]) blockCounts["all"] = 0;
             blockCounts["all"]++;
 
-            if (opName === "comment_options") {
-                for (const key in opData) {
-                    if (key === "extensions") {
-                        const nullWeight = getWeightForAccount(JSON.stringify(opData[key]), "null");
-                        if (nullWeight !== -1) {
-                            await saveNullPost(opData, nullWeight, blockNum, apiUrl);
-                        }
-                    }
-                }
-            }
-
-            if (opName === "transfer") {
-                await saveNullXfer(opData, blockNum, apiUrl);
-            }
-
             processNotifications(opArray, blockNum, transactionId);
         }
 
@@ -348,10 +369,8 @@ async function countOpsInBlock(blockNum, apiUrl) {
             state.opsByNameAvg[key] = state.opsByNameCum[key] / state.numBlocks;
         }
 
-        if (Object.keys(thisOpCount).length > 0) {
-            blockQueue.push({...thisOpCount});
-            thisOpCount = {};
-        }
+        blockQueue.push({...thisOpCount});
+        thisOpCount = {};
 
         if (blockQueue.length > MAX_BLOCKS_TO_SAVE) {
             blockQueue.shift();
@@ -390,6 +409,65 @@ async function countOpsInBlock(blockNum, apiUrl) {
         console.error("Error counting ops in block:", e);
         state.lastPollValid = false;
         return -1;
+    }
+}
+
+// ============================================================
+// VAAS Processing Loop
+// ============================================================
+
+async function processVaasInBlock(blockNum, apiUrl) {
+    try {
+        const opsArray = await getOpsInBlock(apiUrl, blockNum);
+
+        for (let i = 0; i < opsArray.length; i++) {
+            const operationJson = opsArray[i];
+            const opArray = operationJson.op;
+            const opName = opArray[0];
+            const opData = opArray[1];
+
+            if (opName === "comment_options") {
+                for (const key in opData) {
+                    if (key === "extensions") {
+                        const nullWeight = getWeightForAccount(JSON.stringify(opData[key]), "null");
+                        if (nullWeight !== -1) {
+                            await saveNullPost(opData, nullWeight, blockNum, apiUrl);
+                        }
+                    }
+                }
+            }
+
+            if (opName === "transfer") {
+                await saveNullXfer(opData, blockNum, apiUrl);
+            }
+        }
+    } catch (e) {
+        console.error("Error processing VAAS in block:", e);
+    }
+}
+
+async function vaasLoop() {
+    if (state.paused) {
+        setTimeout(vaasLoop, 1000);
+        return;
+    }
+
+    if (state.lastBlockChecked === 0) {
+        setTimeout(vaasLoop, 1000);
+        return;
+    }
+
+    if (state.vaasLastBlockChecked === 0) {
+        state.vaasLastBlockChecked = state.lastBlockChecked - MAXLIFE_BLOCKS;
+    }
+
+    if (state.vaasLastBlockChecked < state.lastBlockChecked) {
+        const blockToProcess = state.vaasLastBlockChecked + 1;
+        await processVaasInBlock(blockToProcess, state.apiURL);
+        state.vaasLastBlockChecked = blockToProcess;
+        setTimeout(vaasLoop, 10);
+    } else {
+        setTimeout(vaasLoop, 1000);
     }
 }
 
@@ -588,8 +666,8 @@ function drawGauge(speed) {
     const EXT_RX = w / 2 - 20;
     const EXT_RY = h / 2;
     const INT_CY = EXT_CY - 70 * scale;
-    const INT_RX = 115;
-    const INT_RY = 95 * scale;
+    const INT_RX = 105;
+    const INT_RY = 85 * scale;
     const LBL_CY = h / 2;
     const LBL_R = w / 2 - 50;
     const NDL_CY = EXT_CY - 2 * scale;
@@ -627,7 +705,7 @@ function drawGauge(speed) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     for (let i = 0; i <= LABEL_COUNT; i++) {
-        const value = Math.floor(i * MAX_SPEED * SCALE_FACTOR / LABEL_COUNT);
+        const value = Math.floor(i * MAX_SPEED * BLOCKS_PER_MINUTE / LABEL_COUNT);
         const angleDeg = 180 - i * (180.0 / LABEL_COUNT);
         const rad = angleDeg * Math.PI / 180;
         const x = GAUGE_CX + LBL_R * Math.cos(rad);
@@ -636,8 +714,8 @@ function drawGauge(speed) {
     }
 
     // ---- Needle ----
-    const needleAngle = speed < MAX_SPEED * SCALE_FACTOR
-        ? (speed / (SCALE_FACTOR * MAX_SPEED)) * 180.0
+    const needleAngle = speed < MAX_SPEED * BLOCKS_PER_MINUTE
+        ? (speed / (BLOCKS_PER_MINUTE * MAX_SPEED)) * 180.0
         : 180;
     const needleRad = (180 - needleAngle) * Math.PI / 180;
     const ndlEndX = GAUGE_CX + LBL_R * Math.cos(needleRad);
@@ -663,7 +741,7 @@ function drawGraph() {
     const padding = { top: 20, right: 20, bottom: 30, left: 40 };
     const plotW = w - padding.left - padding.right;
     const plotH = h - padding.top - padding.bottom;
-
+    
     ctx.clearRect(0, 0, w, h);
 
     ctx.fillStyle = 'whitesmoke';
@@ -681,8 +759,8 @@ function drawGraph() {
     ctx.fillStyle = '#666';
     ctx.font = '10px Verdana';
     ctx.textAlign = 'right';
-    const maxY = MAX_SPEED * SCALE_FACTOR;
-    for (let y = 0; y <= maxY; y += 10 * SCALE_FACTOR) {
+    const maxY = MAX_SPEED * BLOCKS_PER_MINUTE;
+    for (let y = 0; y <= maxY; y += 10 * BLOCKS_PER_MINUTE) {
         const yPos = padding.top + plotH - (y / maxY) * plotH;
         ctx.fillText(y.toString(), padding.left - 5, yPos + 3);
         ctx.strokeStyle = '#ddd';
@@ -726,20 +804,63 @@ function drawGraph() {
 // Scrolling Text Animation
 // ============================================================
 
-function startScrolling(elementId, text, duration) {
+function startScrolling(elementId, text) {
     const el = document.getElementById(elementId);
     if (!el) return;
+
+    if (el._scrollListener) {
+        el.removeEventListener('transitionend', el._scrollListener);
+    }
+
     el.textContent = text;
-    el.style.transform = `translateX(${VAAS_WIDTH}px)`;
+    
+    // Constant speed in pixels per second
+    const speed = 50; 
+
+    function loop() {
+        el.style.transition = 'none';
+        // Start from right edge (off-screen)
+        el.style.transform = `translateX(${VAAS_WIDTH}px)`;
+        
+        // Force a reflow to ensure the browser applies the 'none' transition
+        // before we re-enable it, preventing the animation from being skipped.
+        void el.offsetWidth;
+        
+        const distance = VAAS_WIDTH + el.offsetWidth;
+        const duration = distance / speed;
+        
+        el.style.transition = `transform ${duration}s linear`;
+        // Scroll completely off the left side
+        el.style.transform = `translateX(-${el.offsetWidth}px)`;
+    }
+
+    el._scrollListener = loop;
+    el.addEventListener('transitionend', loop);
+
+    // Start from right edge (off-screen), ready to scroll in
     el.style.transition = 'none';
-    el.offsetHeight;
-    el.style.transition = `transform ${duration}s linear`;
-    el.style.transform = `translateX(-${el.scrollWidth}px)`;
+    el.style.transform = `translateX(${VAAS_WIDTH}px)`;
+    
+    // Force a reflow to ensure the initial position is applied
+    void el.offsetWidth;
+    
+    // Start the animation after a brief delay
+    setTimeout(() => {
+        const distance = VAAS_WIDTH + el.offsetWidth;
+        const duration = distance / speed;
+        
+        el.style.transition = `transform ${duration}s linear`;
+        el.style.transform = `translateX(-${el.offsetWidth}px)`;
+    }, 20);
 }
 
 function stopScrolling(elementId) {
     const el = document.getElementById(elementId);
     if (el) {
+        if (el._scrollListener) {
+            el.removeEventListener('transitionend', el._scrollListener);
+            el._scrollListener = null;
+        }
         el.style.transition = 'none';
         el.style.transform = 'translateX(0)';
     }
@@ -753,8 +874,8 @@ function updateDashLabels() {
     document.getElementById('blockCountLabel').textContent = `# Blocks: ${state.numBlocks}`;
     document.getElementById('digitalLBC').textContent = `Last Block: ${state.lastBlockChecked}`;
     document.getElementById('digitalDisplay').textContent = `Operations per Minute: ${state.opsByName[state.filter] || 0}`;
-    document.getElementById('digitalDisplayMax').textContent = `Maximum Value: ${SCALE_FACTOR * (state.opsByNameMax[state.filter] || 0)}`;
-    document.getElementById('digitalDisplayAvg').textContent = `Average Value: ${(SCALE_FACTOR * (state.opsByNameAvg[state.filter] || 0)).toFixed(0)}`;
+    document.getElementById('digitalDisplayMax').textContent = `Maximum Value: ${BLOCKS_PER_MINUTE * (state.opsByNameMax[state.filter] || 0)}`;
+    document.getElementById('digitalDisplayAvg').textContent = `Average Value: ${(BLOCKS_PER_MINUTE * (state.opsByNameAvg[state.filter] || 0)).toFixed(0)}`;
 }
 
 // ============================================================
@@ -792,17 +913,26 @@ async function updateVAAS() {
     const benHolder = document.getElementById('benPostHolder');
     const promoHolder = document.getElementById('promotedPostHolder');
     const voteBtn = document.getElementById('suggestedVoteButton');
+    const vaasContainer = document.getElementById('vaasContainer');
+
+    benHolder.style.display = 'none';
+    promoHolder.style.display = 'none';
+    vaasContainer.classList.remove('empty');
 
     if (vaasType === 0 && benPostList.length > 0) {
         const randomPost = getRandomPost(state.lastBlockChecked);
         if (!randomPost) {
+            vaasContainer.classList.add('empty');
             benHolder.style.display = 'none';
             voteBtn.style.display = 'none';
             return;
         }
 
         const postTitle = await retrievePostInfo(randomPost, state.apiURL);
-        if (!postTitle) {
+        if (!postTitle || postTitle === "(no title)") {
+            // If post title couldn't be retrieved, skip this post and try another
+            state.changePost = true;
+            vaasContainer.classList.add('empty');
             benHolder.style.display = 'none';
             voteBtn.style.display = 'none';
             return;
@@ -855,6 +985,7 @@ async function updateVAAS() {
     } else if ((vaasType === 1 || vaasType === 2) && promoTransferList.length > 0) {
         const randomPromo = getRandomMemo(state.lastBlockChecked);
         if (!randomPromo) {
+            vaasContainer.classList.add('empty');
             promoHolder.style.display = 'none';
             voteBtn.style.display = 'none';
             return;
@@ -890,6 +1021,13 @@ async function updateVAAS() {
             };
 
             const postTitle = await retrievePostInfo(promoPost, state.apiURL);
+            if (!postTitle || postTitle === "(no title)") {
+                // If post title couldn't be retrieved, skip this promo and try another
+                state.changePost = true;
+                vaasContainer.classList.add('empty');
+                voteBtn.style.display = 'none';
+                return;
+            }
             const promoRep = await retrieveReputation(promoAuthor, state.apiURL);
             const followerInfo = await calcFollowerMedianAndCount(state.apiURL, promoAuthor);
 
@@ -959,6 +1097,9 @@ async function updateVAAS() {
         promoHolder.onclick = () => {
             if (state.webUrl) window.open(state.webUrl, '_blank');
         };
+    } else {
+        vaasContainer.classList.add('empty');
+        voteBtn.style.display = 'none';
     }
 }
 
@@ -1017,7 +1158,7 @@ function showVoteTable() {
         let voteSuggestion = votesPerDay === 12
             ? 100
             : Math.round((2000.0 / votesPerDay) * state.voteIndexValue);
-        voteSuggestion = Math.min(100, Math.max(0, voteSuggestion));
+        voteSuggestion = Math.min(100, Math.max(5, voteSuggestion));
 
         const tr = document.createElement('tr');
         const td1 = document.createElement('td');
@@ -1251,6 +1392,7 @@ function init() {
     };
 
     setInterval(mainLoop, UPDATE_INTERVAL);
+    setTimeout(vaasLoop, 1000);
 }
 
 document.addEventListener('DOMContentLoaded', init);
