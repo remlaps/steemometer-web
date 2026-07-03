@@ -6,7 +6,7 @@ Steemometer is a web-based dashboard and visualizer for the Steem blockchain. It
 - Real-time gauge and digital displays showing Steem blockchain activity.
 - Configurable filters to track specific operations (comments, votes, transfers, custom JSON).
 - Historical activity graph visualizing blockchain activity over time.
-- VAAS (Value Added Author Service) display showing random beneficiary and promoted posts.
+- VAAS (Visibility as a Service) display showing random beneficiary and promoted posts.
 - Vote suggestion tool based on author reputation and activity.
 - Configurable API and Web server endpoints.
 
