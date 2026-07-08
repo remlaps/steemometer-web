@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.0.4] - 2026-07-08
+### Changed
+- Removed non-functional and slow API servers from the server list.
+- Removed non-functional and slow web servers from the server list.
+
 ## [0.0.3] - 2026-07-02
 ### Changed
 - Improved continuous scrolling animation logic in VAAS display for smoother visual flow.

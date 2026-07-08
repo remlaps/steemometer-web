@@ -1,5 +1,5 @@
 // ============================================================
-// Steemometer - Web Version 0.0.3
+// Steemometer - Web Version 0.0.4
 // Ported from Java Steemometer by Steve Palmer
 // ============================================================
 
@@ -30,40 +30,25 @@ const MIN_WITHDRAWAL = 2500000.0;
 
 // --- API Servers ---
 const API_SERVERS = [
-    "https://api.blokfield.io",
     "https://api.campingclub.me",
-    "https://api.cotina.org",
     "https://api.dhakawitness.com",
-    "https://api.dlike.io",
     "https://api.justyy.com",
     "https://api.moecki.online",
-    "https://api.steem.fans",
     "https://api.steememory.com",
     "https://api.steemit.com",
     "https://api.steemitdev.com",
-    "https://api.steems.top",
     "https://api.steemyy.com",
-    "https://api.steemzzang.com",
-    "https://api.upvu.org",
-    "https://api.wherein.io",
-    "https://api.worldofxpilar.com",
-    "https://cn.steems.top",
-    "https://rpc.amarbangla.net",
-    "https://steem.61bts.com",
     "https://steem.senior.workers.dev",
     "https://steemapi.boylikegirl.club",
-    "https://steemd.steemworld.org",
-    "https://steemyy.com/node"
+    "https://steemd.steemworld.org"
 ];
 
 const WEB_SERVERS = [
-    "https://blog.nutbox.io",
     "https://steemit.com",
     "https://steemit.moecki.online",
     "https://steemit.steemapps.com",
     "https://steemitdev.com",
-    "https://steempro.com",
-    "https://upvu.org"
+    "https://steempro.com"
 ];
 
 // --- State ---
